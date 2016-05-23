@@ -19,15 +19,14 @@ here's the list:
 | Server ingredients | All the shenanigans regarding servers setup, work and security | [Cluster.Host-Servers](https://github.com/keeeenion/Cluster.Host-Servers) |
 | Dockerfiles | Dockerfiles for building systems running hosted services | [Cluster.Host-Dockerfiles](https://github.com/keeeenion/Cluster.Host-Dockerfiles) |
 
-## About this subproject
-
-Would You look at that, I forgot to write the summary here.
-
 ## Current progress
 
-- [ ------------ 0% ] Setup scripts
+- [ |----------- 10% ] Setup script
 - [ ------------ 0% ] Server security
 - [ ------------ 0% ] Networking
+
+Notes:
+Meh..
 
 ## Credit
 
