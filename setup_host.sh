@@ -25,14 +25,8 @@ codename='lsb_release --codename | cut -f2'
 
 # Awesome thanks to https://github.com/tlatsas for the spinner
 function _spinner() {
-    # $1 start/stop
-    #
-    # on start: $2 display message
-    # on stop : $2 process exit status
-    #           $3 spinner function pid (supplied from stop_spinner)
-
-    local on_success="DONE"
-    local on_fail="FAIL"
+    local on_success="+"
+    local on_fail="-"
     local white="\e[1;37m"
     local green="\e[1;32m"
     local red="\e[1;31m"
@@ -101,6 +95,7 @@ spin() {
 	# $2 : Command
 	
 	start_spinner ${1}
+	#basc -c ""
 	for ((i=2;i<=$#;i++))
 	do
 		${!i} >/dev/null 2>&1
@@ -173,8 +168,10 @@ spin "Upgrading" 'apt-get -qq upgrade'
 spin "Cleaning after updates" 'apt-get -qq clean' 'rm -rf /tmp/*'
 
 spin "Installing curl" 'apt-get -qq install curl'
-spin "Installing " 'apt-get -qq install apt-transport-https ca-certificates'
+spin "Installing apt specific packages" 'apt-get -qq install apt-transport-https ca-certificates'
 spin "Adding Docker's GPG key" 'apt-key -qq adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D'
+
+spin "Installing openssh server" 'apt-get install openssh-server'
 
 # If you are installing on Ubuntu 14.04 or 12.04, apparmor is required
 if [ $version == "12.04" ] || [ $version == "14.04" ]
@@ -188,11 +185,11 @@ fi
 spin "Installing Docker engine" 'apt-get -qq install docker-engine'
 
 start_spinner "Installing Datadog's agent"
-DD_API_KEY=${datadog_key} bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh) >/dev/null" 
+DD_API_KEY=$datadog_key bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh) >/dev/null" 
 stop_spinner $?
 
 #
-# Configuring software
+# Configuring
 #
 
 
@@ -200,12 +197,22 @@ echo ""
 echo "[+] Configuring software"
 echo "------------------------"
 
-## Startup runnables
+# Runnables
 spin "Running Docker on startup " 'systemctl enable docker'
 
 start_spinner "Grabbing updates every five hours"
 crontab -l | { cat; echo "0 */5 * * * apt-get -qq update && apt-get -qq upgrade"; } | crontab -
 stop_spinner $?
+
+#Openssh-server
+start_spinner "Configuring openssh server"
+sed -i 's/^\(PermitRootLogin\).*/\1 no/' /etc/ssh/sshd_config
+sed -i 's/^\(Protocol\).*/\1 2/' /etc/ssh/sshd_config
+sed -i 's/^\(AllowUsers\).*/\1 $USER/' /etc/ssh/sshd_config
+sed -i 's/^\(HostbasedAuthentication\).*/\1 no/' /etc/ssh/sshd_config
+sed -i 's/^\(Port\).*/\1 22222/' /etc/ssh/sshd_config
+sed -i 's/^\(PermitEmptyPasswords\).*/\1 no/' /etc/ssh/sshd_config
+stop_spinner $? # Will be improved
 
 # Hardening and securing the system
 echo ""
@@ -229,6 +236,16 @@ echo "-------------------------------------"
 ## Setting up backups
 
 ## Spawn runnables
+
+#
+# Restarting services
+#
+
+echo ""
+echo "[+] Restarting service"
+echo "----------------------"
+spin "Restarting openssh server" 'service openssh-server reload' 'service openssh-server restart'
+spin "Restarting Docker" 'service docker reload' 'service docker restart'
 
 #
 # Summary of the excecutable
