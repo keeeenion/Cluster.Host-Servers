@@ -7,7 +7,7 @@ Grab a copy of the [LICENSE right here!](LICENSE).
 
 The plan is to develop a new open source* server hosting service. For now It's a private project I'll be tinkering on. As a full stack dev I'm responsible for every aspect. I won't be sharing the innovative idea behind the whole project just yet. Anyways the project itself is divided into multiple subprojects...
 
-*Most of the materials are open sourced.
+*Large portion are
 
 here's the list:
 

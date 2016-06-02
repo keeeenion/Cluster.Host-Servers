@@ -1,23 +1,26 @@
 #!/bin/bash
 clear
+clear
 
 # Notes:
 # Required kernel is above 3.10
-# For Ubuntu Precise (12.04), Docker requires the 3.13 kernel version
-# Designed for Ubuntu distro
-# I suggest running on a clean system
+# For Ubuntu Precise (12.04), Docker requires the 3.13 kernel version, not yet handeled
+# Designed for Ubuntu distros
+# I suggest running it on a clean system
+
+# Run as following: bash -c "$(curl -L https://raw.githubusercontent.com/keeeenion/Cluster.Host-Servers/master/setup_host.sh) >/dev/null
 
 #
 # Variables
 #
 
 
-ssh_port=""
+ssh_port="22222"
 
 pw_length=""
 
-version='sb_release --release | cut -f2'
-codename='lsb_release --codename | cut -f2'
+version=$(lsb_release --release | cut -f2)
+codename=$(lsb_release --codename | cut -f2)
 
 #
 # Methods
@@ -94,16 +97,24 @@ spin() {
 	# $1 : Displayed string
 	# $2 : Command
 	
-	start_spinner ${1}
-	#basc -c ""
-	for ((i=2;i<=$#;i++))
-	do
-		${!i} >/dev/null 2>&1
-		if [ $? > 0 ]
-			then output=1
-		fi
-	done
-	stop_spinner $output
+	if (( $# == 1 ))
+	then
+		start_spinner "${1}"
+		stop_spinner 0
+		return 0
+	else
+		start_spinner "${1}"
+		for (( i=2;i<=$#;i++ ))
+		do	
+			#basc -c ""
+			${!i} >/dev/null 2>&1
+			if [ $? > 0 ]
+				then output=1
+			fi
+		done
+		stop_spinner $output
+		return 0
+	fi
 }
 
 #
@@ -120,6 +131,7 @@ if [ $EUID -ne 0 ]
 	then echo "[-] Please run me with sudo privileges"
 	exit
 fi
+echo ""
 
 #
 # User input
@@ -128,50 +140,60 @@ fi
 ## Getting datadog's ID from user
 echo "Please specify your Datadog's API key: [ENTER]"
 read datadog_key
+echo ""
 
 #
 # Creating users and groups
 #
 
+echo ""
 echo "[+] Creating users and groups"
 echo "-----------------------------"
 
-spin "Creating a Docker group" 'groupadd docker'
-spin "Adding Your account to the Docker group" 'usermod -aG docker $USER'
+if grep -q "docker" /etc/group; then
+	spin "Docker group already exists"
+else
+	spin "Creating a Docker group" 'groupadd docker'
+fi
 
-## Creating accounts when needed
-
-## Generating random passwords
+if groups $USER | grep &>/dev/null '\bcustomers\b'; then
+    spin "Your user is already part of Docker's group"
+else
+    spin "Adding Your user to the Docker group" 'usermod -aG docker $USER'
+fi
 
 #
 # Updating and installing dependencies
 #
 
+echo ""
 echo "[+] Updating and installing dependencies"
 echo "----------------------------------------"
 
+start_spinner "Installing Datadog's agent"
 if [ $version == "12.04" ]; then
-	spin "Adding docker sources" 'echo "deb https://apt.dockerproject.org/repo ubuntu-precise main" > /etc/apt/sources.list.d/docker.list'
+	echo "deb https://apt.dockerproject.org/repo ubuntu-precise main" > /etc/apt/sources.list.d/docker.list
 elif [ $version == "14.04" ]; then
-	spin "Adding docker sources" 'echo "deb https://apt.dockerproject.org/repo ubuntu-trusty main" > /etc/apt/sources.list.d/docker.list'
+	echo "deb https://apt.dockerproject.org/repo ubuntu-trusty main" > /etc/apt/sources.list.d/docker.list
 elif [ $version == "15.10" ]; then
-	spin "Adding docker sources" 'echo "deb deb https://apt.dockerproject.org/repo ubuntu-wily main" > /etc/apt/sources.list.d/docker.list'
+	echo "deb https://apt.dockerproject.org/repo ubuntu-wily main" > /etc/apt/sources.list.d/docker.list
 elif [ $version == "16.04" ]; then
-	spin "Adding docker sources" 'echo "deb deb https://apt.dockerproject.org/repo ubuntu-xenial main" > /etc/apt/sources.list.d/docker.list'
+	echo "deb https://apt.dockerproject.org/repo ubuntu-xenial main" > /etc/apt/sources.list.d/docker.list
 else
 	echo "You must be using a wrong version or something"
 	exit
 fi
+stop_spinner $?
 
-spin "Updating" 'apt-get -qq update'
-spin "Upgrading" 'apt-get -qq upgrade'
+spin "Updating" 'apt-get -qq update -y'
+spin "Upgrading" 'apt-get -qq upgrade -y'
 spin "Cleaning after updates" 'apt-get -qq clean' 'rm -rf /tmp/*'
 
-spin "Installing curl" 'apt-get -qq install curl'
-spin "Installing apt specific packages" 'apt-get -qq install apt-transport-https ca-certificates'
-spin "Adding Docker's GPG key" 'apt-key -qq adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D'
+spin "Installing curl" 'apt-get -qq install curl -y'
+spin "Installing apt specific packages" 'apt-get -qq -y install apt-transport-https ca-certificates'
+spin "Adding Docker's GPG key" 'apt-key -qq -y adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D'
 
-spin "Installing openssh server" 'apt-get install openssh-server'
+spin "Installing openssh server" 'apt-get install openssh-server -y'
 
 # If you are installing on Ubuntu 14.04 or 12.04, apparmor is required
 if [ $version == "12.04" ] || [ $version == "14.04" ]
@@ -179,10 +201,10 @@ if [ $version == "12.04" ] || [ $version == "14.04" ]
 fi
 
 if [ $version == "16.04" ] || [ $version == "14.04" ] || [ $version == "15.10" ]
-	spin "Installing recommended packages" 'apt-get -qq install linux-image-extra-$(uname -r)'
+	then spin "Installing recommended packages" 'apt-get -y -qq install linux-image-extra-$(uname -r)'
 fi
 
-spin "Installing Docker engine" 'apt-get -qq install docker-engine'
+spin "Installing Docker engine" 'apt-get -qq -y install docker-engine'
 
 start_spinner "Installing Datadog's agent"
 DD_API_KEY=$datadog_key bash -c "$(curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh) >/dev/null" 
@@ -192,7 +214,7 @@ stop_spinner $?
 # Configuring
 #
 
-
+echo ""
 echo ""
 echo "[+] Configuring software"
 echo "------------------------"
@@ -201,7 +223,7 @@ echo "------------------------"
 spin "Running Docker on startup " 'systemctl enable docker'
 
 start_spinner "Grabbing updates every five hours"
-crontab -l | { cat; echo "0 */5 * * * apt-get -qq update && apt-get -qq upgrade"; } | crontab -
+crontab -l | { cat; echo "0 */5 * * * apt-get -y -qq update && apt-get -y -qq upgrade"; } | crontab -
 stop_spinner $?
 
 #Openssh-server
@@ -210,20 +232,14 @@ sed -i 's/^\(PermitRootLogin\).*/\1 no/' /etc/ssh/sshd_config
 sed -i 's/^\(Protocol\).*/\1 2/' /etc/ssh/sshd_config
 sed -i 's/^\(AllowUsers\).*/\1 $USER/' /etc/ssh/sshd_config
 sed -i 's/^\(HostbasedAuthentication\).*/\1 no/' /etc/ssh/sshd_config
-sed -i 's/^\(Port\).*/\1 22222/' /etc/ssh/sshd_config
+sed -i 's/^\(Port\).*/\1 $ssh_port/' /etc/ssh/sshd_config
 sed -i 's/^\(PermitEmptyPasswords\).*/\1 no/' /etc/ssh/sshd_config
 stop_spinner $? # Will be improved
 
-# Hardening and securing the system
+# System configurations
 echo ""
-echo "[+] Hardening and securing the system"
+echo "[+] System configurations"
 echo "-------------------------------------"
-
-## Swapping default ports
-
-## Locking out the root user
-
-## Changing passwords
 
 ## Changing privileges for critical folders
 
@@ -253,5 +269,5 @@ spin "Restarting Docker" 'service docker reload' 'service docker restart'
 
 
 echo ""
-echo "[+] Summary of the installation"
-echo "-------------------------------"
+echo "[+] Additional info"
+echo "-------------------"
